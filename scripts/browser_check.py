@@ -61,8 +61,14 @@ async def desktop(browser):
             # A real random death is allowed in a gameplay session; modifier and
             # exact volley scheduling are independently asserted by unit tests.
             if not s['dead']:
-                assert s['shots']>=target
-                await page.click('#pause');before=await state(page)
+                assert s['shots']==target and s['time']<=2.1, (mode,s)
+                assert not s['openingVolley']
+                report.append(f"PASS {mode} opening: {target} shots by {s['time']:.3f}s, normal phase restored")
+                # A ball can legitimately hit between observing the volley and
+                # pausing. Use the keyboard path and inspect the actual screen.
+                await page.keyboard.press('p')
+            if (await state(page))['screen']=='pause':
+                before=await state(page)
                 await page.wait_for_timeout(300);after=await state(page)
                 assert after['time']==before['time'] and after['ship']==before['ship']
                 await check_layout(page,mode+' pause')

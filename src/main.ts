@@ -32,7 +32,7 @@ function show(next:Screen) {
   if(next==='play'){layer.innerHTML='';updateHud();return;}
   let content='';
   if(next==='menu')content=`<p class="eyebrow">A pirate survival arcade</p><h1 class="brand">ESCAPE<span>FORTUNE FAVOURS THE AFLOAT</span></h1><p>One ship. One hit. A sea full of trouble.<br>Outsail the cannon. Make off with the gold.</p><div class="buttons">${button('play','Set sail →','primary')}${button('info','How to play','subtle')}</div>${audioButtons()}<div class="fineprint">WASD / ARROWS · TOUCH HELM · LANDSCAPE</div>`;
-  if(next==='difficulty')content=`<p class="eyebrow">Choose your waters</p><h2>How brave, captain?</h2><div class="difficulty-grid">${(['Easy','Medium','Hard'] as Difficulty[]).map((mode,i)=>`<button id="choose-${mode}" class="action ${mode.toLowerCase()}"><strong>${mode}</strong><span>${['A gentle start','Keep your wits','All hands on deck'][i]}<br>${difficultyConfig[mode].volley} initial ball${i?'s':''} · ${difficultyConfig[mode].interval}s fire<br>Best ${best(mode).toLocaleString()}</span></button>`).join('')}</div><p>The cannon fires faster as you survive.</p>${button('back','← Back to port','small subtle')}`;
+  if(next==='difficulty')content=`<p class="eyebrow">Choose your waters</p><h2>How brave, captain?</h2><div class="difficulty-grid">${(['Easy','Medium','Hard'] as Difficulty[]).map((mode,i)=>`<button id="choose-${mode}" class="action ${mode.toLowerCase()}"><strong>${mode}</strong><span>${['A gentle start','Keep your wits','All hands on deck'][i]}<br>${difficultyConfig[mode].volley} ${i?'quickfire balls':'opening ball'} · ${difficultyConfig[mode].interval}s fire<br>Best ${best(mode).toLocaleString()}</span></button>`).join('')}</div><p>The cannon fires faster as you survive.</p>${button('back','← Back to port','small subtle')}`;
   if(next==='info')content=`<p class="eyebrow">Captain’s orders</p><h2>Keep your ship afloat.</h2><div class="info-grid"><ul class="rules"><li><b>Steer</b> with WASD / arrows, the touch helm, or hold the water with your mouse.</li><li><b>One hit sinks you.</b> Balls ricochet forever and fly over the fort. Sail around it.</li><li><b>Score:</b> 10 / second, 50 / coin, +20 / green, −20 / red. Double score earns 2× new points.</li><li><b>10-second effects.</b> Repeats refresh; opposites multiply. Parley clears every ball.</li></ul><div class="token-guide">${Object.values(effectsConfig).map(e=>`<div class="${e.positive?'':'bad'}"><b>${e.icon}</b>${e.label}</div>`).join('')}</div></div><div class="fineprint">P / ESC PAUSE · B COLLISION VIEW</div>${button('back','← Back to port','small primary')}`;
   if(next==='pause')content=`<p class="eyebrow">Anchor dropped</p><h2>A moment in port.</h2><p>The sea can wait. Your voyage is paused.</p><div class="buttons">${button('resume','Resume voyage →','primary')}<div class="split">${button('retry','Restart','small')}${button('home','Main menu','small subtle')}</div></div>${audioButtons(true)}`;
   if(next==='results'&&run)content=`<p class="eyebrow">${run.mode} waters · Voyage over</p><h2>Lost to the deep.</h2><p>A bold run, captain. The sea keeps its gold.</p><div class="results"><div><span>SCORE</span><b>${run.score.toLocaleString()}</b></div><div><span>TIME</span><b>${run.elapsed.toFixed(1)}s</b></div><div><span>COINS</span><b>${run.coins}</b></div></div><div class="best">PERSONAL BEST · ${best(run.mode).toLocaleString()} · ${run.positives} boons / ${run.negatives} curses</div><div class="buttons">${button('retry','Sail again →','primary')}<div class="split">${button('levels','Change difficulty','small')}${button('home','Main menu','small subtle')}</div></div>`;
@@ -67,7 +67,7 @@ function getInput():Vec {
   if(mouse&&run){const dx=mouse.x-run.ship.x,dy=mouse.y-run.ship.y,d=Math.hypot(dx,dy);if(d>8)return{x:dx/d*Math.min(1,d/80),y:dy/d*Math.min(1,d/80)};}
   return{x:0,y:0};
 }
-interface FX extends Vec { kind:'wake'|'shot'|'coin'|'positive'|'negative'|'death'|'bounce'; life:number; max:number; text?:string }
+interface FX extends Vec { kind:'wake'|'shot'|'coin'|'positive'|'negative'|'death'|'bounce'; life:number; max:number; text?:string; angle?:number }
 class Sea extends Phaser.Scene {
   private ship!:Phaser.GameObjects.Image;private cannon!:Phaser.GameObjects.Image;
   private ink!:Phaser.GameObjects.Graphics;private collision!:Phaser.GameObjects.Graphics;
@@ -139,7 +139,7 @@ class Sea extends Phaser.Scene {
         for(let i=0;i<12;i++){const angle=i*Math.PI/6;this.ink.fillStyle(i%2?0xffcc55:0xff6f31,a);this.ink.fillCircle(f.x+Math.cos(angle)*t*140,f.y+Math.sin(angle)*t*140,5+a*22);}
         this.ink.lineStyle(5,0xffeb8e,a).strokeCircle(f.x,f.y,20+t*160);
       }else if(f.kind==='shot'){
-        const a2=run?.angle??0,x=TUNING.island.x+Math.cos(a2)*103,y=TUNING.island.y+Math.sin(a2)*103;
+        const a2=f.angle??run?.angle??0,x=TUNING.island.x+Math.cos(a2)*103,y=TUNING.island.y+Math.sin(a2)*103;
         this.ink.fillStyle(0xffd674,a).fillCircle(x,y,15+t*16);this.ink.fillStyle(0xfff6d5,a).fillCircle(x,y,8+t*12);
       }else{this.ink.lineStyle(3,f.kind==='negative'?0xffa889:0xffec9b,a).strokeCircle(f.x,f.y,20+t*35);}
     }
@@ -189,7 +189,7 @@ for(const ev of ['pointerup','pointercancel','lostpointercapture'])joystick.addE
 // gets a narrow harness so it can drive every modifier and fatal-hit path.
 if(import.meta.env.DEV && new URLSearchParams(location.search).has('test')) {
   Object.assign(window,{escapeTest:{
-    state:()=>({screen,mode:run?.mode,time:run?.elapsed,score:run?.score,coins:run?.coins,ship:run?.ship,size:run?.size,angle:run?.initialAngle,balls:run?.balls.length,shots:run?.shots,pickups:run?.pickups.map(p=>({...p})),effects:run?.effects,dead:run?.dead,debug}),
+    state:()=>({screen,mode:run?.mode,time:run?.elapsed,score:run?.score,coins:run?.coins,ship:run?.ship,size:run?.size,angle:run?.initialAngle,balls:run?.balls.length,shots:run?.shots,cannonAngle:run?.angle,openingVolley:run?.openingVolley,nextShot:run?.nextShot,shipSpeed:run?.shipSpeed,pickups:run?.pickups.map(p=>({...p})),effects:run?.effects,dead:run?.dead,debug}),
     apply:(id:EffectId)=>run?.apply(id),
     collect:()=>{if(run?.pickups[0])run.collect(run.pickups[0])},
     fatal:()=>{if(run)run.balls.push({id:99999,...run.ship,vx:1,vy:0})},

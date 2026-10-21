@@ -42,8 +42,8 @@ describe('shore physics',()=>{
    expect(contacts).toBeGreaterThan(0);expect(b.vy).toBeLessThan(0);
   }
  });
- it('keeps the entire art bounding circle off shore and island at half/default/double size',()=>{
-  for(const size of [.5,1,2])for(const p0 of [...COAST,TUNING.island]){
+ it('keeps the entire art bounding circle off shore and island at half/default/XL size and double-size stress',()=>{
+  for(const size of [.5,1,1.35,2])for(const p0 of [...COAST,TUNING.island]){
    const p={x:p0.x,y:p0.y};constrainShip(p,TUNING.shipShoreRadius*size);
    expect(safeWater(p,TUNING.shipShoreRadius*size-.1),JSON.stringify({p0,p,size,near:nearestShore(p)})).toBe(true);
    expect(distance(p,TUNING.island)).toBeGreaterThanOrEqual(TUNING.island.radius+TUNING.shipShoreRadius*size-.1);

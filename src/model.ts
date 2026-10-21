@@ -1,8 +1,8 @@
-import { difficultyConfig, effectsConfig, EFFECT_VALUES, fireInterval, NEGATIVES, POSITIVES, SCORE, TUNING, type Difficulty, type EffectId } from './config';
+import { difficultyConfig, effectsConfig, EFFECT_VALUES, fireInterval, pickModifier, NEGATIVES, POSITIVES, SCORE, TUNING, type Difficulty, type EffectId } from './config';
 import { ballHitsShip, constrainShip, distance, safeWater, stepBall, type Ball, type Vec } from './physics';
 export type PickupKind='coin'|EffectId;
 export interface Pickup extends Vec { id:number; kind:PickupKind; expires:number; born:number }
-export interface GameEvent { type:'shot'|'coin'|'positive'|'negative'|'death'|'bounce'; x:number; y:number; text?:string }
+export interface GameEvent { type:'shot'|'coin'|'positive'|'negative'|'death'|'bounce'; x:number; y:number; text?:string; angle?:number }
 export class Run {
   mode:Difficulty;
   elapsed=0; points=0; coins=0; positives=0; negatives=0; dead=false;
@@ -10,7 +10,8 @@ export class Run {
   angle:number; initialAngle:number; balls:Ball[]=[]; pickups:Pickup[]=[];
   effects:Partial<Record<EffectId,number>>={}; events:GameEvent[]=[];
   shots=0; nextShot:number=TUNING.firstShot; private serial=0;
-  private coinAt=0.7; private positiveAt=2.6; private negativeAt=4.4;
+  private coinAt=0.7; private positiveAt:number=TUNING.firstPositive; private negativeAt:number=TUNING.firstNegative;
+  private volleyTarget?:number;
   constructor(mode:Difficulty, public rng= Math.random) {
     this.mode=mode;this.angle=this.initialAngle=rng()*Math.PI*2;
     const a=rng()*Math.PI*2;
@@ -20,6 +21,8 @@ export class Run {
   active(id:EffectId) { return (this.effects[id]??0)>this.elapsed; }
   get size() { return (this.active('small')?EFFECT_VALUES.small:1)*(this.active('large')?EFFECT_VALUES.large:1); }
   get shipSpeed() { return TUNING.shipSpeed*(this.active('fast')?EFFECT_VALUES.fast:1)*(this.active('slow')?EFFECT_VALUES.slow:1); }
+  get openingVolley() { return this.shots < difficultyConfig[this.mode].volley; }
+  get rotationSpeed() { return TUNING.cannonRotation*difficultyConfig[this.mode].rotation; }
   get ballMultiplier() { return this.active('ballsFast')?EFFECT_VALUES.ballsFast:1; }
   get score() { return Math.max(0,Math.floor(this.points+1e-7)); }
   award(amount:number) { this.points=Math.max(0,this.points+amount*(this.active('double')?EFFECT_VALUES.double:1)); }
@@ -56,16 +59,57 @@ export class Run {
     if(p.kind==='coin') { this.coins++;this.award(SCORE.coin);this.events.push({type:'coin',...p,text:`+${SCORE.coin*(this.active('double')?EFFECT_VALUES.double:1)} booty`}); }
     else this.apply(p.kind);
   }
+  private muzzle(angle:number):Vec {
+    return {x:TUNING.island.x+Math.cos(angle)*TUNING.muzzleDistance,y:TUNING.island.y+Math.sin(angle)*TUNING.muzzleDistance};
+  }
+  private safeAim(angle:number,margin=0) {
+    return distance(this.muzzle(angle),this.ship)>=TUNING.shipShoreRadius*this.size+90+margin;
+  }
+  private angleDifference(to:number,from:number) {
+    return Math.atan2(Math.sin(to-from),Math.cos(to-from));
+  }
+  private chooseVolleyTarget() {
+    const suitable=(a:number)=>Math.abs(this.angleDifference(a,this.angle))>=TUNING.volleyMinTurn && this.safeAim(a,TUNING.volleySafetyMargin);
+    // New random headings, with visibly distinct consecutive shots.
+    for(let i=0;i<24;i++) {
+      const a=this.rng()*Math.PI*2;
+      if(suitable(a))return a;
+    }
+    // Even a degenerate RNG or a ship beside the fort must not delay the volley.
+    // Search the same circle for a legal direction; never spawn a ball in a hull.
+    for(let i=1;i<=64;i++) {
+      const a=this.angle+i*Math.PI*2/64;
+      if(suitable(a))return a;
+    }
+    return Math.atan2(TUNING.island.y-this.ship.y,TUNING.island.x-this.ship.x);
+  }
+  private turnCannon(dt:number) {
+    if(!this.openingVolley) { this.angle+=this.rotationSpeed*dt;return; }
+    this.volleyTarget??=this.angle;
+    if(!this.safeAim(this.volleyTarget,TUNING.volleySafetyMargin))this.volleyTarget=this.chooseVolleyTarget();
+    // Arrive at the random target exactly at the scheduled shot. The barrel
+    // visibly quick-turns between shots; normal rotation resumes after the last.
+    const remaining=Math.max(dt,this.nextShot-this.elapsed+dt);
+    this.angle+=this.angleDifference(this.volleyTarget,this.angle)*Math.min(1,dt/remaining);
+  }
   private fire() {
-    this.angle+=(this.rng()-0.5)*TUNING.shotJitter;
-    let a=this.angle;
-    // Delay an aimed shot away from a nearby ship, retaining the visible barrel
-    // heading. No ball appears in the hull or an unavoidable muzzle collision.
-    const muzzle={x:TUNING.island.x+Math.cos(a)*TUNING.muzzleDistance,y:TUNING.island.y+Math.sin(a)*TUNING.muzzleDistance};
-    if(distance(muzzle,this.ship)<TUNING.shipShoreRadius*this.size+90) { this.nextShot=this.elapsed+0.2;return; }
-    this.balls.push({...muzzle,id:++this.serial,vx:Math.cos(a)*TUNING.ballSpeed,vy:Math.sin(a)*TUNING.ballSpeed});
-    this.events.push({type:'shot',...muzzle});this.shots++;
-    this.nextShot=this.elapsed+(this.shots<difficultyConfig[this.mode].volley?TUNING.volleyGap:fireInterval(this.mode,this.elapsed));
+    const opening=this.openingVolley;
+    if(!opening)this.angle+=(this.rng()-0.5)*TUNING.shotJitter;
+    if(!this.safeAim(this.angle)) {
+      if(opening)this.angle=this.chooseVolleyTarget();
+      else { this.nextShot=this.elapsed+0.2;return; }
+    }
+    const muzzle=this.muzzle(this.angle);
+    this.balls.push({...muzzle,id:++this.serial,vx:Math.cos(this.angle)*TUNING.ballSpeed,vy:Math.sin(this.angle)*TUNING.ballSpeed});
+    this.events.push({type:'shot',...muzzle,angle:this.angle});this.shots++;
+    if(this.openingVolley) {
+      // Schedule against the run clock to avoid drift or accumulating delays.
+      this.nextShot=TUNING.firstShot+this.shots*TUNING.volleyGap;
+      this.volleyTarget=this.chooseVolleyTarget();
+    }else {
+      this.volleyTarget=undefined;
+      this.nextShot=this.elapsed+fireInterval(this.mode,this.elapsed);
+    }
   }
   step(dt:number,input:Vec={x:0,y:0}) {
     if(this.dead)return;
@@ -82,7 +126,7 @@ export class Run {
       this.ship.x+=input.x*scale*this.shipSpeed*dt;this.ship.y+=input.y*scale*this.shipSpeed*dt;
     }
     constrainShip(this.ship,TUNING.shipShoreRadius*this.size);
-    this.angle+=TUNING.cannonRotation*difficultyConfig[this.mode].rotation*dt;
+    this.turnCannon(dt);
     if(this.elapsed+1e-8>=this.nextShot)this.fire();
     for(const b of this.balls) {
       const bounced=stepBall(b,dt,this.ballMultiplier,(_prev,next)=>{
@@ -94,8 +138,8 @@ export class Run {
     this.pickups=this.pickups.filter(p=>p.expires>this.elapsed);
     for(const p of [...this.pickups]) if(distance(p,this.ship)<TUNING.shipHullRadius*this.size+TUNING.pickupRadius) this.collect(p);
     if(this.elapsed>=this.coinAt) { this.spawnPickup('coin');this.coinAt=this.elapsed+TUNING.coinEvery; }
-    if(this.elapsed>=this.positiveAt) { this.spawnPickup(POSITIVES[Math.min(3,Math.floor(this.rng()*4))]);this.positiveAt=this.elapsed+TUNING.positiveEvery; }
-    if(this.elapsed>=this.negativeAt) { this.spawnPickup(NEGATIVES[Math.min(3,Math.floor(this.rng()*4))]);this.negativeAt=this.elapsed+TUNING.negativeEvery; }
+    if(this.elapsed>=this.positiveAt) { this.spawnPickup(pickModifier(POSITIVES,this.rng));this.positiveAt=this.elapsed+TUNING.positiveEvery; }
+    if(this.elapsed>=this.negativeAt) { this.spawnPickup(pickModifier(NEGATIVES,this.rng));this.negativeAt=this.elapsed+TUNING.negativeEvery; }
   }
   die() { if(!this.dead){this.dead=true;this.events.push({type:'death',...this.ship});} }
 }

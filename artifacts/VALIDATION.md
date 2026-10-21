@@ -1,21 +1,23 @@
-# Prototype validation — 21 October 2026
+# Escape tuning update — 21 October 2026
 
-- Node 24.19.0 / npm 11.9.0.
-- Clean `npm ci --no-audit --no-fund`: passed.
-- `npm test`: **30 / 30 passed**, no skipped tests.
-- `npm run build`: TypeScript check and Vite production build passed.
-- Chromium browser suite: **50 checks passed**, including two sessions in each difficulty, actual keyboard/touch input, all eight modifier paths, pause/death/retry, audio preferences, and reachable navigation at 1280×720, 844×390, 667×375, 568×320 and 932×430. Portrait auto-pause and landscape return passed. A natural death in a session is a valid death-path outcome; exact complete volley counts/timings are separately verified by model tests.
-- Production preview smoke: assets, navigation, keyboard path, live HUD, pause/resume and absence of the development test harness passed.
-- No browser runtime errors were observed in either successful final run.
-- Collision stress: 18 seeded trajectories × 12,000 steps, with speeds up to 2,250 world units/second after modifiers, plus targeted bottom-centre shots. All stayed inside the radius-offset traced shore, preserving speed. Half/normal/double-size artwork clearance and fort blocking passed.
+## Current checks
 
-## Evidence
+- `npm test`: **44/44 passed**, no skipped tests.
+- `npm run build`: TypeScript and production bundle passed.
+- Chromium desktop and phone regression: **55 checks passed**, no runtime errors. Two sessions per difficulty, real keyboard/touch input, pause/results/retry, eight modifiers, and reachable controls down to 568×320.
+- Browser opening observations are recorded in `browser-report.json`: surviving Easy/Medium/Hard openings finish within two seconds; both observed Hard openings reached five shots at about 1.88 seconds.
 
-- `gameplay-desktop.png`, `gameplay-production.png`: playable game captures.
-- `gameplay-phone-landscape.png`: touch landscape layout.
-- `collision-debug.png`: shore, fort and hull calibration view.
-- `gameplay-effects.png`: modifier feedback and status UI.
-- `menu-desktop.png`, `results-desktop.png`, `phone-portrait-prompt.png`: navigation screens.
-- `browser-report.json`, `production-report.json`: recorded check outcomes.
+## Requested changes and regression evidence
 
-These are Chromium and Chromium mobile emulation results. Physical iPhone Safari, touch feel and audible music/SFX quality still need human device playtesting. Original cutouts, procedural tokens, temporary menu/HUD artwork and synthesized audio remain provisional. No deployment/publication or Git push was performed.
+1. **Parley rarer:** relative spawn weight 0.25 versus 1 for each other positive, approximately 7.7% of positive drops. Tested via actual scheduled drops and 13,000 weighted selections. With the slower positive cadence, the expected average frequency is about six times lower than the initial prototype.
+2. **Ship faster:** 425 rather than 340 world units/second (+25%). Actual displacement, normalized diagonal speed and speed effects tested.
+3. **Modifiers less frequent:** positives every 10s, first at 6s; negatives every 12s, first at 8s. Coins remain every 1.5s. Tested actual spawn times through 40 simulated seconds.
+4. **XL moderated:** 1.35× artwork and collision hull instead of 2×. Opposite effects combine multiplicatively; expiry restores defaults. Shore tests now cover 0.5×, 1×, 1.35× and a 2× stress case.
+5. **Opening quickfire:** shots at 0.25s, then 0.4s gaps as needed: Easy 1 by 0.25s, Medium 3 by 1.05s, Hard 5 by 1.85s. New random headings and fast visible turns between opening shots; exact normal rotation/firing schedule restored afterward. Tests exercise 32 seeds per difficulty, muzzle safety beside the fort and degenerate RNG, plus direction alignment and absence of overlapping schedules.
+6. **Escalation verified:** actual emitted steady shot intervals tested for 130 simulated seconds in each difficulty. Target intervals at 60s are Easy 4s, Medium 2.75s, Hard 1.5s; configured minimums hold. Execution quantization is at most one 1/120s step. This was already implemented and has now been checked through the actual scheduler rather than only the interval formula.
+
+## Evidence and limits
+
+Updated gameplay/collision/phone captures and `browser-report.json` are from this local tuning build. `gameplay-production.png` and `production-report.json` retain the original prototype production baseline. Live deployment gets a separate HTTPS/browser check after GitHub Pages succeeds; do not infer publication from these local checks.
+
+Chromium phone emulation is not physical iPhone Safari testing. Artwork cutouts, temporary menus/tokens, and synthesized audio remain provisional. Supplied source art and game logic outside this tuning change were preserved.
