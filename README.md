@@ -117,3 +117,9 @@ The runner navigates real screens, drives keyboard and actual browser touch even
 See `artifacts/browser-report.json` for the last successful browser checks. Chromium phone emulation is useful but is **not physical iPhone Safari validation**; real device/audio feel remains to be playtested. The original briefs and supplied asset guide remain in the repository for comparison.
 
 Next improvements: refine the PSD ship/cannon cutouts; playtest ball speed/spawn cadence on a physical iPhone; replace the synthesized audio and temporary UI with final original assets.
+
+## Playable web link (GitHub Pages deployment)
+
+`.github/workflows/pages.yml` builds, tests, and deploys the game to GitHub Pages after a push to `main`, or a manual workflow run. In repository Settings → Pages, the build source must be **GitHub Actions** and the repository's plan/visibility must support Pages. The successful deployment's `github-pages` environment supplies the actual playable URL. Future pushes to `main` update that same URL.
+
+Publishing this web preview has been authorized. The deployment workflow is ready; GitHub Pages must be enabled before its first deployment can succeed. Check the repository’s Actions tab for deployment status. A public play URL is only considered working after deployment and a browser check succeed.
