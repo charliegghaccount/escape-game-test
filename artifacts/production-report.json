@@ -1,0 +1,12 @@
+{
+  "passed": true,
+  "checks": [
+    "Production bundle loads all assets",
+    "Title/difficulty/play navigation",
+    "Keyboard input path",
+    "Live HUD time and score",
+    "Pause freezes simulation; resume returns to play",
+    "Development test harness absent"
+  ],
+  "runtimeErrors": []
+}

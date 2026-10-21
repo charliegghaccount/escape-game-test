@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
+  <meta name="theme-color" content="#063d57" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Escape • Pirate survival</title>
+</head>
+<body>
+  <main id="app" aria-label="Escape pirate survival game">
+    <div id="game" aria-label="Game arena"></div>
+    <div id="hud" hidden>
+      <div class="hud-stats">
+        <div class="wood stat"><span>TIME</span><strong id="time">0.0</strong></div>
+        <div class="wood stat"><span>◉ COINS</span><strong id="coins">0</strong></div>
+        <div class="wood stat"><span>SCORE</span><strong id="score">0</strong></div>
+      </div>
+      <div id="mode-tag"></div>
+      <button class="wood round" id="pause" aria-label="Pause game"><span class="pause-symbol" aria-hidden="true"></span></button>
+      <div id="effects" aria-label="Active effects"></div>
+    </div>
+    <div id="joystick" aria-label="Touch steering"><div id="stick"></div></div>
+    <div id="screen" class="overlay"></div>
+    <div id="rotate"><span>↻</span><h2>Turn the tide.</h2><p>Rotate your phone to landscape to set sail.</p></div>
+  </main>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
